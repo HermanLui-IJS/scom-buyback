@@ -61,8 +61,6 @@ export default class ScomBuyback extends Module {
 	defaultEdit: boolean = true;
 
 	private infoStack: VStack;
-	private topStack: VStack;
-	private bottomStack: VStack;
 	private emptyStack: VStack;
 
 	private loadingElm: Panel;
@@ -496,7 +494,6 @@ export default class ScomBuyback extends Module {
 				});
 				this.updateCommissionInfo();
 				await this.renderBuybackCampaign();
-				await this.renderLeftPart();
 				const firstToken = this.getTokenObject('toTokenAddress');
 				if (firstToken && firstToken.symbol !== ChainNativeTokenByChainId[chainId]?.symbol && this.state.isRpcWalletConnected()) {
 					await this.initApprovalModelAction();
@@ -943,7 +940,7 @@ export default class ScomBuyback extends Module {
 
 	private renderBuybackCampaign = async () => {
 		if (this.buybackInfo) {
-			this.bottomStack.clearInnerHTML();
+			this.infoStack.clearInnerHTML();
 			const chainId = this.chainId;
 			const isRpcConnected = this.state.isRpcWalletConnected();
 			const { queueInfo } = this.buybackInfo;
@@ -953,16 +950,34 @@ export default class ScomBuyback extends Module {
 			const secondTokenObj = tokenMap[this.getValueByKey('fromTokenAddress')];
 			const firstSymbol = firstTokenObj?.symbol ?? '';
 			const secondSymbol = secondTokenObj?.symbol ?? '';
+			const rate = `1 ${firstSymbol} : ${formatNumber(1 / this.getValueByKey('offerPrice'))} ${secondSymbol}`;
+			const reverseRate = `1 ${secondSymbol} : ${this.getValueByKey('offerPrice')} ${firstSymbol}`;
+			const info = queueInfo || {} as ProviderGroupQueueInfo;
+			const { startDate, endDate } = info;
+			const hStackEndTime = await HStack.create({ gap: 4, verticalAlignment: 'center' });
+			const lbEndTime = await Label.create({ caption: 'End Time', font: { size: '0.875rem', bold: true } });
+			hStackEndTime.appendChild(lbEndTime);
+			hStackEndTime.appendChild(<i-label caption={formatDate(endDate)} font={{ size: '0.875rem', bold: true, color: Theme.colors.primary.main }} margin={{ left: 'auto' }} />);
 
 			const tokenBalances = tokenStore.getTokenBalancesByChainId(this.state.getChainId()) || {};
 			const balance = tokenBalances[firstTokenObj.address.toLowerCase() || firstTokenObj.symbol];
 			const commissionFee = this.state.embedderCommissionFee;
 			const hasCommission = !!this.state.getCurrentCommissions(this.commissions).length;
-			this.bottomStack.clearInnerHTML();
-			this.bottomStack.appendChild(
+			const lbRate = new Label(undefined, {
+				caption: rate,
+				font: { bold: true, color: Theme.colors.primary.main },
+			});
+			let isToggled = false;
+			const onToggleRate = () => {
+				isToggled = !isToggled;
+				lbRate.caption = isToggled ? reverseRate : rate;
+			}
+			this.infoStack.clearInnerHTML();
+			this.infoStack.appendChild(
 				<i-panel padding={{ bottom: '0.5rem', top: '0.5rem', right: '1rem', left: '1rem' }} height="auto">
 					<i-vstack gap={10} width="100%">
 						<i-vstack id="detailWrapper" gap={10} width="100%" visible={false}>
+							{hStackEndTime}
 							<i-hstack gap={4} verticalAlignment="center" wrap="wrap">
 								<i-label caption="Group Queue Balance" />
 								<i-label caption={`${formatNumber(amount || 0)} ${secondSymbol}`} margin={{ left: 'auto' }} />
@@ -988,6 +1003,21 @@ export default class ScomBuyback extends Module {
 							margin={{ top: 4, bottom: 16, left: 'auto', right: 'auto' }}
 							onClick={this.onToggleDetail}
 						/>
+						<i-hstack gap={4} verticalAlignment="center" horizontalAlignment="space-between" wrap="wrap">
+							<i-label caption="Buyback Price" font={{ bold: true }} />
+							<i-hstack gap="0.5rem" verticalAlignment="center" horizontalAlignment="end">
+								{lbRate}
+								<i-icon
+									name="exchange-alt"
+									width={14}
+									height={14}
+									fill={Theme.text.primary}
+									opacity={0.9}
+									cursor="pointer"
+									onClick={onToggleRate}
+								/>
+							</i-hstack>
+						</i-hstack>
 						<i-hstack gap={4} wrap="wrap">
 							<i-label caption="Swap Available" />
 							<i-vstack gap={4} margin={{ left: 'auto' }} horizontalAlignment="end">
@@ -1098,132 +1128,23 @@ export default class ScomBuyback extends Module {
 						</i-panel>
 					</i-vstack>
 				</i-panel>
-			)
+			);
+
+			const currentTime = moment().valueOf();
+			if (this.isUpcoming) {
+				const startTime = moment(startDate).valueOf();
+				setTimeout(() => {
+					this.updateBtnSwap();
+				}, currentTime - startTime);
+			}
+			if (!this.isExpired) {
+				const endTime = moment(endDate).valueOf();
+				setTimeout(() => {
+					this.updateBtnSwap();
+				}, endTime - currentTime);
+			}
 		} else {
 			this.renderEmpty();
-		}
-	}
-
-	private renderLeftPart = async () => {
-		if (this.buybackInfo) {
-			this.topStack.clearInnerHTML();
-			const { tokenIn, tokenOut, queueInfo } = this.buybackInfo;
-			const info = queueInfo || {} as ProviderGroupQueueInfo;
-			const { startDate, endDate } = info;
-			const firstToken = tokenOut?.startsWith('0x') ? tokenOut.toLowerCase() : tokenOut;
-			const secondToken = tokenIn?.startsWith('0x') ? tokenIn.toLowerCase() : tokenIn;
-			const tokenMap = tokenStore.getTokenMapByChainId(this.chainId);
-			const firstTokenObj = tokenMap[firstToken];
-			const firstSymbol = firstTokenObj?.symbol ?? '';
-			const secondTokenObj = tokenMap[secondToken];
-			const secondSymbol = secondTokenObj?.symbol ?? '';
-			const rate = `1 ${firstSymbol} : ${formatNumber(1 / this.getValueByKey('offerPrice'))} ${secondSymbol}`;
-			const reverseRate = `1 ${secondSymbol} : ${this.getValueByKey('offerPrice')} ${firstSymbol}`;
-			const { title, logo } = this._data;
-			const hasBranch = !!title || !!logo;
-			let imgLogo: string;
-			if (logo?.startsWith('ipfs://')) {
-				imgLogo = logo.replace('ipfs://', '/ipfs/');
-			} else {
-				imgLogo = logo;
-			}
-
-			const hStackEndTime = await HStack.create({ gap: 4, verticalAlignment: 'center' });
-			const lbEndTime = await Label.create({ caption: 'End Time', font: { size: '0.875rem', bold: true } });
-			hStackEndTime.appendChild(lbEndTime);
-			hStackEndTime.appendChild(<i-label caption={formatDate(endDate)} font={{ size: '0.875rem', bold: true, color: Theme.colors.primary.main }} margin={{ left: 'auto' }} />);
-
-			// const optionTimer = { background: { color: Theme.colors.secondary.main }, font: { color: Theme.colors.secondary.contrastText } };
-			// const hStackTimer = await HStack.create({ gap: 4, verticalAlignment: 'center' });
-			// const lbTimer = await Label.create({ caption: 'Starts In', font: { size: '0.875rem', bold: true } });
-			// const endHour = await Label.create(optionTimer);
-			// const endDay = await Label.create(optionTimer);
-			// const endMin = await Label.create(optionTimer);
-			// endHour.classList.add('timer-value');
-			// endDay.classList.add('timer-value');
-			// endMin.classList.add('timer-value');
-			// hStackTimer.appendChild(lbTimer);
-			// hStackTimer.appendChild(
-			// 	<i-hstack gap={4} margin={{ left: 'auto' }} verticalAlignment="center" class="custom-timer">
-			// 		{endDay}
-			// 		<i-label caption="D" class="timer-unit" />
-			// 		{endHour}
-			// 		<i-label caption="H" class="timer-unit" />
-			// 		{endMin}
-			// 		<i-label caption="M" class="timer-unit" />
-			// 	</i-hstack>
-			// );
-
-			// let interval: any;
-			// const setTimer = () => {
-			// 	let days = 0;
-			// 	let hours = 0;
-			// 	let mins = 0;
-			// 	if (moment().isBefore(moment(startDate))) {
-			// 		lbTimer.caption = 'Starts In';
-			// 		lbEndTime.caption = 'End Time';
-			// 		days = moment(startDate).diff(moment(), 'days');
-			// 		hours = moment(startDate).diff(moment(), 'hours') - days * 24;
-			// 		mins = moment(startDate).diff(moment(), 'minutes') - days * 24 * 60 - hours * 60;
-			// 	} else if (moment(moment()).isBefore(endDate)) {
-			// 		lbTimer.caption = 'Ends In';
-			// 		hStackEndTime.visible = false;
-			// 		days = moment(endDate).diff(moment(), 'days');
-			// 		hours = moment(endDate).diff(moment(), 'hours') - days * 24;
-			// 		mins = moment(endDate).diff(moment(), 'minutes') - days * 24 * 60 - hours * 60;
-			// 	} else {
-			// 		hStackTimer.visible = false;
-			// 		hStackEndTime.visible = true;
-			// 		lbEndTime.caption = 'Ended On';
-			// 		days = hours = mins = 0;
-			// 		clearInterval(interval);
-			// 	}
-			// 	endDay.caption = `${days}`;
-			// 	endHour.caption = `${hours}`;
-			// 	endMin.caption = `${mins}`;
-			// }
-			// setTimer();
-			// interval = setInterval(() => {
-			// 	setTimer();
-			// }, 1000);
-
-			const lbRate = new Label(undefined, {
-				caption: rate,
-				font: { bold: true, color: Theme.colors.primary.main },
-			});
-			let isToggled = false;
-			const onToggleRate = () => {
-				isToggled = !isToggled;
-				lbRate.caption = isToggled ? reverseRate : rate;
-			}
-			this.topStack.clearInnerHTML();
-			this.topStack.appendChild(
-				<i-vstack gap={10} width="100%" padding={{ bottom: '0.5rem', top: '0.5rem', right: '1rem', left: '1rem' }}>
-					{
-						hasBranch ? <i-vstack gap="0.25rem" margin={{ bottom: '0.25rem' }} horizontalAlignment="center">
-							<i-label visible={!!title} caption={title} margin={{ top: '0.5em', bottom: '1em' }} font={{ weight: 600 }} />
-							<i-image visible={!!imgLogo} url={imgLogo} height={100} />
-						</i-vstack> : []
-					}
-					<i-hstack gap="0.25rem" verticalAlignment="center" horizontalAlignment="space-between" wrap="wrap">
-						<i-label caption="Buyback Price" font={{ bold: true }} />
-						<i-hstack gap="0.5rem" verticalAlignment="center" horizontalAlignment="end">
-							{lbRate}
-							<i-icon
-								name="exchange-alt"
-								width={14}
-								height={14}
-								fill={Theme.text.primary}
-								opacity={0.9}
-								cursor="pointer"
-								onClick={onToggleRate}
-							/>
-						</i-hstack>
-					</i-hstack>
-					{/* {hStackTimer} */}
-					{hStackEndTime}
-				</i-vstack>
-			)
 		}
 	}
 
@@ -1292,17 +1213,15 @@ export default class ScomBuyback extends Module {
 						<i-vstack id="emptyStack" visible={false} minHeight={320} margin={{ top: 10, bottom: 10 }} verticalAlignment="center" horizontalAlignment="center" />
 						<i-vstack
 							id="infoStack"
+							gap="0.5rem"
 							width="100%"
 							minWidth={320}
 							maxWidth={500}
 							height="100%"
 							margin={{ left: 'auto', right: 'auto' }}
-							horizontalAlignment="center"
-						>
-							<i-vstack id="topStack" width="inherit" padding={{ top: '0.5rem', bottom: '0.5rem', left: '0.5rem', right: '0.5rem' }} />
-							<i-panel width="calc(100% - 4rem)" height={2} background={{ color: Theme.input.background }} />
-							<i-vstack id="bottomStack" gap="0.5rem" width="inherit" padding={{ top: '0.5rem', bottom: '0.5rem', left: '0.5rem', right: '0.5rem' }} background={{ color: Theme.background.main }} verticalAlignment="space-between" />
-						</i-vstack>
+							padding={{ top: '0.5rem', bottom: '0.5rem', left: '0.5rem', right: '0.5rem' }}
+							background={{ color: Theme.background.main }}
+						/>
 					</i-panel>
 					<i-scom-tx-status-modal id="txStatusModal" />
 					<i-scom-wallet-modal id="mdWallet" wallets={[]} />

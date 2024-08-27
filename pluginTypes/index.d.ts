@@ -307,8 +307,6 @@ declare module "@scom/scom-buyback/data.json.ts" {
         defaultBuilderData: {
             defaultChainId: number;
             chainId: number;
-            title: string;
-            logo: string;
             offerIndex: number;
             tokenIn: string;
             tokenOut: string;
@@ -452,8 +450,6 @@ declare module "@scom/scom-buyback" {
         tag: any;
         defaultEdit: boolean;
         private infoStack;
-        private topStack;
-        private bottomStack;
         private emptyStack;
         private loadingElm;
         private txStatusModal;
@@ -587,7 +583,6 @@ declare module "@scom/scom-buyback" {
         private onToggleDetail;
         private renderEmpty;
         private renderBuybackCampaign;
-        private renderLeftPart;
         private isEmptyData;
         init(): Promise<void>;
         render(): any;
