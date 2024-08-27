@@ -489,8 +489,8 @@ export default class ScomBuyback extends Module {
 				const isCustomTokenOut = tokenOut?.toLowerCase() === CUSTOM_TOKEN.address.toLowerCase();
 				this.buybackInfo = await getGuaranteedBuyBackInfo(this.state, {
 					...this._data,
-					tokenIn: isCustomTokenIn ? customTokenIn : tokenIn,
-					tokenOut: isCustomTokenOut ? customTokenOut : tokenOut
+					tokenIn: isCustomTokenIn ? (customTokenIn?.toLowerCase() === 'native token' ? null : customTokenIn) : tokenIn,
+					tokenOut: isCustomTokenOut ? (customTokenOut?.toLowerCase() === 'native token' ? null : customTokenOut) : tokenOut
 				});
 				this.updateCommissionInfo();
 				await this.renderBuybackCampaign();
